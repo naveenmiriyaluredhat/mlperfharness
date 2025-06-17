@@ -1,5 +1,5 @@
 import os
-from multiprocessing import Process, Queue, Manager
+from multiprocessing import Process, Queue, Manager, Event
 import time
 import random
 from typing import List, Dict, Any, Tuple
@@ -61,6 +61,7 @@ def vllm_worker_process(
     worker_status: Manager().dict, # Shared dictionary for load tracking (num prompts in queue)
     cuda_device_id: int,
     gpu_memory_utilization: float,
+    ready_event: Event,
     max_model_len: int = None
 ) -> None:
     """
@@ -83,6 +84,7 @@ def vllm_worker_process(
         )
         
         print(f"Process {process_id}: Model loaded successfully on device {cuda_device_id}.")
+        ready_event.set()#Set the event that the model loaded successfully
 
         worker_status[process_id] = 0 # Initialize this worker's load
 
@@ -158,6 +160,7 @@ def vllm_worker_process(
             finally:
                 # Decrement load after processing the entire batch
                 worker_status[process_id] = worker_status[process_id] - len(prompts_to_process)
+                ready_event.set()
                 print(f"Process {process_id}: Finished batch. Current load: {worker_status[process_id]}")
             
 
@@ -184,11 +187,13 @@ class VLLMSchedulingSUT:
         self.results_queue = Queue() # Global queue for completed batches of responses
         self.worker_status = self.manager.dict() # Shared dict {worker_id: current_load_in_queue}
         self.processes: List[Process] = []
+        self.worker_ready_events: List[Event] = []
 
         self.last_assigned_idx = -1 # For Round Robin scheduling
         self.query_id_to_prompt = {} # To store original prompts by query_id for debugging/tracking
 
         self._start_workers()
+        self._wait_for_replicas_to_load_models()
         self._start_result_collector() # Start a thread to continuously collect results
 
     def _start_workers(self):
@@ -197,7 +202,9 @@ class VLLMSchedulingSUT:
         for i in range(self.num_processes):
             worker_id = i + 1
             q = Queue()
+            ready_e = Event()
             self.worker_input_queues.append(q)
+            self.worker_ready_events.append(ready_e)
             self.worker_status[worker_id] = 0 # Initialize load for each worker
 
             assigned_cuda_device_id = i % self.num_gpus
@@ -216,12 +223,35 @@ class VLLMSchedulingSUT:
                     self.worker_status,
                     assigned_cuda_device_id,
                     gpu_mem_util,
+                    ready_e,
                     self.max_model_len
                 )
             )
             self.processes.append(process)
             process.start()
             print(f"SUT: Worker {worker_id} started (targets GPU {assigned_cuda_device_id}).")
+
+    def _wait_for_replicas_to_load_models(self, timeout: int = 600):
+        """
+        Waits for all replica processes to signal that their vLLM models have loaded.
+        """
+        print(f"SUT: Waiting for all {self.num_processes} replicas to load models (timeout: {timeout}s)...")
+        all_ready = True
+        for i, event in enumerate(self.worker_ready_events):
+            replica_id = i + 1
+            if not event.wait(timeout): # Wait for each replica's event with a timeout
+                print(f"SUT Error: Replica {replica_id} failed to signal readiness within {timeout} seconds.")
+                all_ready = False
+                # If a replica failed to set its event, it likely encountered an error
+                # during model loading. For MLPerf, if models aren't ready, results will be invalid anyway.
+                raise RuntimeError(f"Replica {replica_id} failed to load model within {timeout}s. Exiting.")
+            else:
+                print(f"SUT: Replica {replica_id} is ready.")
+            
+        if not all_ready: # This check is mainly for clarity, as raise would have happened.
+            print("SUT: Not all replicas became ready. This indicates a problem with model loading.")
+            raise RuntimeError("One or more vLLM replicas failed to load models.")
+        print("SUT: All vLLM replicas have signaled readiness.")
 
     def _start_result_collector(self):
         """Starts a separate thread to collect results from workers and report to Loadgen."""
