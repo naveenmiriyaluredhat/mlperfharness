@@ -9,6 +9,7 @@ LoadGen harness for MLperf inference
   - uv venv -p 3.10 env
   - Using 3.10 and above with <- 3.12 is essential
   - uv pip install vllm
+    
  *This avoids the zip error encountered when using llm.generate*
 
 #TODO
@@ -23,6 +24,7 @@ LoadGen harness for MLperf inference
  8. There is no need for the worker thread collecting results. Loadgen should handle these scenarios well
 
 #COMPLETED
+
  7. Should ensure we pass the response data back to loadgen -Done
 
 #LoadGen 
