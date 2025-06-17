@@ -16,8 +16,14 @@ LoadGen harness for MLperf inference
  2. Convert to tokens and receive input tokens to be sent to LoadGen 
  3. Generate single prompts for offline scenario
  4. For the same SUT have a interface for API serve as well
- 5. In the MLperf branch for Small_llm_inference there is a reference implementation for VLLM
- 6. Current harness allows one GPU to be specified per process . Allow for flexible mapping
+ 5. In the MLperf branch named small_llm_inference there is a reference implementation for VLLM
+    a. The vllm expects an API server 
+    b. Pull in the dataset class to process the json
+ 6. Current harness allows one GPU to be specified per process. Allow for flexible mapping
+ 8. There is no need for the worker thread collecting results. Loadgen should handle these scenarios well
+
+#COMPLETED
+ 7. Should ensure we pass the response data back to loadgen -Done
 
 #LoadGen 
 1. Loadgen is a load generator and provides an interface to be implemented by the SUT(System Under Test)

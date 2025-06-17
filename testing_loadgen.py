@@ -26,6 +26,17 @@ except ImportError:
     print("Example: pip install -e inference/loadgen")
     exit(1)
 
+text_prompts = [
+    "Tell me a short, funny joke about a robot.",
+    "Summarize the main points of the 'Software as a Service' (SaaS) model.",
+    "Write a short, encouraging poem about learning Python.",
+    "What is the capital of Australia?",
+    "Explain the concept of quantum entanglement in simple terms.",
+    "Hello, my name is",
+    "The capital of France is",
+    "What is the square root of 64?",
+]
+
 def load_samples_to_ram(query_samples):
     del query_samples
     return
@@ -410,7 +421,8 @@ if __name__ == "__main__":
 
     # Generate synthetic prompts for Loadgen
     def get_prompt_data(num_samples: int) -> List[bytes]:
-        prompts = [f"Simulated prompt {i+1}: What is AI and how does it impact the world?" for i in range(num_samples)]
+        #prompts = [f"Simulated prompt {i+1}: What is AI and how does it impact the world?" for i in range(num_samples)]
+        prompts = [text_prompts[i] for i in range(num_samples)]
         #return [p.encode('utf-8') for p in prompts] # Loadgen expects bytes
         return prompts 
 
