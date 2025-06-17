@@ -17,21 +17,23 @@ LoadGen harness for MLperf inference
  2. Convert to tokens and receive input tokens to be sent to LoadGen 
  4. For the same SUT have a interface for API serve as well
  5. In the MLperf branch named small_llm_inference there is a reference implementation for VLLM
-    a. The vllm expects an API server 
+
+    a. The vllm expects an API server
+    
     b. Pull in the dataset class to process the json
- 6. Current harness allows one GPU to be specified per process. Allow for flexible mapping
- 7. There is no need for the worker thread collecting results. Loadgen should handle these scenarios well
- 8. Add engine configs to be passed to the vllm engine
- 9. Add nvtx annotation for nvprofile
- 10. Add timers to get latency breakup within the harness
- 11. Load model and then start the load generator
- 12. Process the dataset . Figure a way out for different models and their dataset processing requirements
- 13. LLM_WORKER_MULTIPROC_METHOD=spawn Observed in nvidia's container for Llama3.1 8b check-in
- 14. Understand why multiprocess spawn does not work clearly with multiple vllm processes Is it tied to the above one ?
- 15. Nvidia uses npy files after preprocessing . Looks like they are loading as np.arrays which should be faster indexing 
- 16. How does nvidia return the response ptr for QuerySampleResponse
- 17. Single nsight profile of vllm with a batch of data
- 18. Nvidia's harness for 5.1 and compare data
+ 7. Current harness allows one GPU to be specified per process. Allow for flexible mapping
+ 8. There is no need for the worker thread collecting results. Loadgen should handle these scenarios well
+ 9. Add engine configs to be passed to the vllm engine
+ 10. Add nvtx annotation for nvprofile
+ 11. Add timers to get latency breakup within the harness
+ 12. Load model and then start the load generator
+ 13. Process the dataset . Figure a way out for different models and their dataset processing requirements
+ 14. LLM_WORKER_MULTIPROC_METHOD=spawn Observed in nvidia's container for Llama3.1 8b check-in
+ 15. Understand why multiprocess spawn does not work clearly with multiple vllm processes Is it tied to the above one ?
+ 16. Nvidia uses npy files after preprocessing . Looks like they are loading as np.arrays which should be faster indexing 
+ 17. How does nvidia return the response ptr for QuerySampleResponse
+ 18. Single nsight profile of vllm with a batch of data
+ 19. Nvidia's harness for 5.1 and compare data
 
 
 #COMPLETED
