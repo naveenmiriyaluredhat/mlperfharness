@@ -240,7 +240,7 @@ class VLLMSchedulingSUT:
 
                     query_id = result_data["query_id"]
                     #response_ptr = result_data["response_ptr"]
-                    response_size = result_data["response_size"]
+                    response_size = result_data["token_count"]
 
                     # Create a Loadgen QuerySampleResponse
                     response = [lg.QuerySampleResponse(query_id, 0, response_size)]
