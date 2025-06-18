@@ -59,7 +59,7 @@ def vllm_worker_process(
     worker_input_queue: Queue, # Queue for incoming MLPerf QuerySample objects
     output_queue: Queue, # Queue for outgoing MLPerf QuerySampleResponse objects
     worker_status: Manager().dict, # Shared dictionary for load tracking (num prompts in queue)
-    cuda_device_id: int,
+    cuda_device_ids: List[int],
     gpu_memory_utilization: float,
     ready_event: Event,
     max_model_len: int = None
@@ -70,7 +70,8 @@ def vllm_worker_process(
     processes them, and sends a BATCH of responses back to the main process.
     """
     # --- IMPORTANT: Set CUDA_VISIBLE_DEVICES for THIS process ---
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(cuda_device_id)
+    os.environ['CUDA_VISIBLE_DEVICES'] = ",".join(map(str, cuda_device_ids))
+    os.environ['VLLM_CONFIGURE_LOGGING'] = "0"
     print(f"Process {process_id}: Configured to use CUDA device: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
     print(f"Process {process_id}: Starting to load model '{model_name}'...")
@@ -80,10 +81,11 @@ def vllm_worker_process(
             model=model_name,
             trust_remote_code=True,
             gpu_memory_utilization=gpu_memory_utilization,
+            tensor_parallel_size=len(cuda_device_ids),
             max_model_len=max_model_len
         )
         
-        print(f"Process {process_id}: Model loaded successfully on device {cuda_device_id}.")
+        print(f"Process {process_id}: Model loaded successfully on device {cuda_device_ids}.")
         ready_event.set()#Set the event that the model loaded successfully
 
         worker_status[process_id] = 0 # Initialize this worker's load
@@ -135,7 +137,7 @@ def vllm_worker_process(
                         "generated_text": generated_text, # For debugging/logging in collector
                         "token_count": token_count, # Metric for Loadgen size
                         "duration": batch_duration, # Total batch duration
-                        "cuda_device_used": cuda_device_id,
+                        "cuda_device_used": cuda_device_ids,
                         "status": "success"
                     })
                 
@@ -152,7 +154,7 @@ def vllm_worker_process(
                         "process_id": process_id,
                         "query_id": current_query_id,
                         "error": error_msg,
-                        "cuda_device_attempted": cuda_device_id,
+                        "cuda_device_attempted": cuda_device_ids,
                         "token_count": 0, # 0 tokens on error
                         "status": "error"
                     })
@@ -167,19 +169,20 @@ def vllm_worker_process(
     except Exception as e:
         print(f"Process {process_id}: Critical error during setup or main loop - {e}")
         # If setup fails, send a special message to the output queue for the collector to handle
-        output_queue.put([{"process_id": process_id, "setup_error": str(e), "cuda_device_attempted": cuda_device_id, "status": "critical_error"}])
+        output_queue.put([{"process_id": process_id, "setup_error": str(e), "cuda_device_attempted": cuda_device_ids, "status": "critical_error"}])
 
 
 # --- System Under Test (SUT) Class for MLPerf Loadgen ---
 class VLLMSchedulingSUT:
-    def __init__(self, num_processes: int, num_gpus: int, model_name: str,
+    def __init__(self, num_replicas: int, num_gpus: int, model_name: str,
                  scheduling_policy: str, max_model_len: int = None, example_data: list = None):
-        self.num_processes = num_processes
+        self.num_replicas = num_replicas
         self.num_gpus = num_gpus
         self.model_name = model_name
         self.scheduling_policy = scheduling_policy
         self.max_model_len = max_model_len
         self.data = example_data # This is the list of prompts from the QSL
+        self.gpus_per_replica = self.num_gpus // self.num_replicas 
 
         # Multiprocessing components
         self.manager = Manager()
@@ -198,20 +201,21 @@ class VLLMSchedulingSUT:
 
     def _start_workers(self):
         """Starts all vLLM worker processes."""
-        print(f"SUT: Starting {self.num_processes} vLLM worker processes...")
-        for i in range(self.num_processes):
+        print(f"SUT: Starting {self.num_replicas} vLLM worker processes...")
+        for i in range(self.num_replicas):
             worker_id = i + 1
             q = Queue()
             ready_e = Event()
             self.worker_input_queues.append(q)
             self.worker_ready_events.append(ready_e)
             self.worker_status[worker_id] = 0 # Initialize load for each worker
-
-            assigned_cuda_device_id = i % self.num_gpus
+            start_global_gpu_id = i * self.gpus_per_replica
+            assigned_cuda_device_ids = list(range(start_global_gpu_id, start_global_gpu_id + self.gpus_per_replica))
             
             # Heuristic for GPU memory utilization: If multiple processes share a single GPU,
             # divide the memory. Otherwise, assume full utilization per GPU for dedicated GPUs.
-            gpu_mem_util = 0.9 if self.num_gpus >= self.num_processes else (0.9 / self.num_processes)
+            #gpu_mem_util = 0.9 if self.num_gpus >= self.num_replicas else (0.9 / self.num_replicas)
+            gpu_mem_util = 0.9 
 
             process = Process(
                 target=vllm_worker_process,
@@ -221,7 +225,7 @@ class VLLMSchedulingSUT:
                     q,
                     self.results_queue,
                     self.worker_status,
-                    assigned_cuda_device_id,
+                    assigned_cuda_device_ids,
                     gpu_mem_util,
                     ready_e,
                     self.max_model_len
@@ -229,13 +233,13 @@ class VLLMSchedulingSUT:
             )
             self.processes.append(process)
             process.start()
-            print(f"SUT: Worker {worker_id} started (targets GPU {assigned_cuda_device_id}).")
+            print(f"SUT: Worker {worker_id} started (targets GPU {assigned_cuda_device_ids}).")
 
     def _wait_for_replicas_to_load_models(self, timeout: int = 600):
         """
         Waits for all replica processes to signal that their vLLM models have loaded.
         """
-        print(f"SUT: Waiting for all {self.num_processes} replicas to load models (timeout: {timeout}s)...")
+        print(f"SUT: Waiting for all {self.num_replicas} replicas to load models (timeout: {timeout}s)...")
         all_ready = True
         for i, event in enumerate(self.worker_ready_events):
             replica_id = i + 1
@@ -322,16 +326,16 @@ class VLLMSchedulingSUT:
         
         # Calculate batch size per process
         total_samples = len(query_samples)
-        if self.num_processes == 0:
-            print("Error: num_processes is 0, cannot distribute samples.")
+        if self.num_replicas == 0:
+            print("Error: num_replicas is 0, cannot distribute samples.")
             # Must still complete queries to Loadgen if possible, or Loadgen will hang
             lg.QuerySamplesComplete([lg.QuerySampleResponse(qs.id, 0, 0) for qs in query_samples])
             return
 
-        samples_per_process = math.ceil(total_samples / self.num_processes)
+        samples_per_process = math.ceil(total_samples / self.num_replicas)
         
         # Distribute samples to worker queues
-        for i in range(self.num_processes):
+        for i in range(self.num_replicas):
             start_idx = i * samples_per_process
             end_idx = min((i + 1) * samples_per_process, total_samples)
             
@@ -399,9 +403,9 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
-        "--num_processes",
+        "--num_replicas",
         type=int,
-        default=2,
+        default=1,
         help="Number of parallel processes to create for vLLM generation (each running an LLM instance)."
     )
     parser.add_argument(
@@ -439,14 +443,14 @@ if __name__ == "__main__":
 
     # --- Configuration ---
     MODEL_NAME = args.model_name
-    NUM_PROCESSES = args.num_processes
+    NUM_REPLICAS = args.num_replicas
     NUM_GPUS = args.num_gpus
     SCHEDULING_POLICY = args.scheduling_policy
     NUM_SAMPLES = args.num_samples
     MAX_MODEL_LEN = args.max_model_len
 
-    if NUM_PROCESSES <= 0:
-        print("Error: Number of processes (--num_processes) must be at least 1.")
+    if NUM_REPLICAS <= 0:
+        print("Error: Number of processes (--num_replicas) must be at least 1.")
         exit(1)
     if NUM_GPUS <= 0:
         print("Error: Number of GPUs (--num_gpus) must be at least 1.")
@@ -472,7 +476,7 @@ if __name__ == "__main__":
     sut = None
     try:
         sut = VLLMSchedulingSUT(
-            num_processes=NUM_PROCESSES,
+            num_replicas=NUM_REPLICAS,
             num_gpus=NUM_GPUS,
             model_name=MODEL_NAME,
             scheduling_policy=SCHEDULING_POLICY,
@@ -509,7 +513,7 @@ if __name__ == "__main__":
         SUTToTest = lg.ConstructSUT(sut.issue_query, sut.flush_queries)
 
         print(f"MLPerf Loadgen: Starting test with {NUM_SAMPLES} samples in Offline mode...")
-        print(f"Model: {MODEL_NAME}, Processes: {NUM_PROCESSES}, GPUs: {NUM_GPUS}, Policy: {SCHEDULING_POLICY}")
+        print(f"Model: {MODEL_NAME}, Processes: {NUM_REPLICAS}, GPUs: {NUM_GPUS}, Policy: {SCHEDULING_POLICY}")
         print("This may take some time as vLLM models are loaded in each process.")
 
         lg.StartTest(SUTToTest, qsl, settings)
