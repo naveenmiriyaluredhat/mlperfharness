@@ -21,7 +21,6 @@ LoadGen harness for MLperf inference
     a. The vllm expects an API server
     
     b. Pull in the dataset class to process the json
- 7. Current harness allows one GPU to be specified per process. Allow for flexible mapping
  8. There is no need for the worker thread collecting results. Loadgen should handle these scenarios well
  9. Add engine configs to be passed to the vllm engine
  10. Add nvtx annotation for nvprofile
@@ -38,8 +37,9 @@ LoadGen harness for MLperf inference
 
 #COMPLETED
 
- 7. Should ensure we pass the response data back to loadgen -Done
- 3. Generate batched prompts for offline scenario
+ 1. Should ensure we pass the response data back to loadgen -Done
+ 2. Generate batched prompts for offline scenario
+ 3. Current harness allows one GPU to be specified per process. Allow for flexible mapping
 
 #LoadGen 
 1. Loadgen is a load generator and provides an interface to be implemented by the SUT(System Under Test)
