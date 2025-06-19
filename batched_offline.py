@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Tuple
 import argparse
 import ctypes # For C-compatible types for Loadgen
 import math # For ceil in batching
+from dataset import Dataset
 
 # Attempt to import vLLM. If not found, provide a clear message.
 try:
@@ -468,6 +469,12 @@ if __name__ == "__main__":
         help="Number of samples (prompts) Loadgen will issue for the offline test."
     )
     parser.add_argument(
+        "--dataset_path",
+        type=str,
+        default=None,
+        help="Path to the dataset"
+    )
+    parser.add_argument(
         "--model_name",
         type=str,
         default="HuggingFaceH4/tiny-random-LlamaForCausalLM",
@@ -488,6 +495,12 @@ if __name__ == "__main__":
     SCHEDULING_POLICY = args.scheduling_policy
     NUM_SAMPLES = args.num_samples
     MAX_MODEL_LEN = args.max_model_len
+    
+    #Trying with dataset
+    #data_object = Dataset(args.model_name,dataset_path=args.dataset_path,total_sample_count=24567,device="cpu")
+    #print("Datatset = ", data_object.input_ids[0].tolist()) 
+    #print("Datatset Max = ", max(data_object.input_lens)) 
+    #print("Datatset Min = ", min(data_object.input_lens)) 
 
     if NUM_REPLICAS <= 0:
         print("Error: Number of processes (--num_replicas) must be at least 1.")
