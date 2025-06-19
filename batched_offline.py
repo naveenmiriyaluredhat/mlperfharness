@@ -7,6 +7,7 @@ import argparse
 import ctypes # For C-compatible types for Loadgen
 import math # For ceil in batching
 from dataset import Dataset
+from vllm import TokensPrompt
 
 # Attempt to import vLLM. If not found, provide a clear message.
 try:
@@ -148,12 +149,12 @@ def vllm_worker_process(
                 break
 
             # Extract prompts and original query_ids for the batch
-            prompts_to_process = [item["prompt_text"] for item in batch_of_query_data]
+            prompts_to_process = [TokensPrompt(prompt_token_ids=item["prompt_text"]) for item in batch_of_query_data]
             original_query_ids = [item["query_id"] for item in batch_of_query_data]
             
             # Increment load for the entire batch
             worker_status[process_id] = worker_status[process_id] + len(prompts_to_process)
-            print(f"Process {process_id}: Started processing batch of {len(prompts_to_process)} queries. Current load: {worker_status[process_id]}")
+            print(f"Process {process_id}: Started processing batch of {len(prompts_to_process)} queries . Current load: {worker_status[process_id]}\n")
 
             start_time = time.time()
             batch_responses = [] # To collect responses for this batch
@@ -215,11 +216,12 @@ def vllm_worker_process(
 
 # --- System Under Test (SUT) Class for MLPerf Loadgen ---
 class VLLMSchedulingSUT:
-    def __init__(self, num_replicas: int, num_gpus: int, model_name: str,
+    def __init__(self, num_replicas: int, num_gpus: int, model_name: str, dataset_path: str, 
                  scheduling_policy: str, max_model_len: int = None, example_data: list = None):
         self.num_replicas = num_replicas
         self.num_gpus = num_gpus
         self.model_name = model_name
+        self.dataset_path = dataset_path
         self.scheduling_policy = scheduling_policy
         self.max_model_len = max_model_len
         self.data = example_data # This is the list of prompts from the QSL
@@ -235,6 +237,11 @@ class VLLMSchedulingSUT:
 
         self.last_assigned_idx = -1 # For Round Robin scheduling
         self.query_id_to_prompt = {} # To store original prompts by query_id for debugging/tracking
+        self.data_object = Dataset(self.model_name,dataset_path=self.dataset_path,total_sample_count=24576,device="cpu")
+        print("Datatset = ", len(self.data_object.input_ids) )
+        print("Datatset Max = ", max(self.data_object.input_lens)) 
+        print("Datatset Min = ", min(self.data_object.input_lens)) 
+        print("Datatset Len = ", len(self.data_object.input_lens)) 
 
         self._start_workers()
         self._wait_for_replicas_to_load_models()
@@ -389,7 +396,7 @@ class VLLMSchedulingSUT:
             # Prepare batch of data for this worker
             for j in range(start_idx, end_idx):
                 q_sample = query_samples[j]
-                prompt_text = self.data[q_sample.index] # Get the actual prompt text from self.data (QSL)
+                prompt_text = self.data_object.input_ids[q_sample.index] # Get the actual prompt text from self.data (QSL)
                 
                 batch_for_worker.append({
                     "query_id": q_sample.id,
@@ -490,6 +497,7 @@ if __name__ == "__main__":
 
     # --- Configuration ---
     MODEL_NAME = args.model_name
+    DATASET_PATH = args.dataset_path
     NUM_REPLICAS = args.num_replicas
     NUM_GPUS = args.num_gpus
     SCHEDULING_POLICY = args.scheduling_policy
@@ -497,10 +505,6 @@ if __name__ == "__main__":
     MAX_MODEL_LEN = args.max_model_len
     
     #Trying with dataset
-    #data_object = Dataset(args.model_name,dataset_path=args.dataset_path,total_sample_count=24567,device="cpu")
-    #print("Datatset = ", data_object.input_ids[0].tolist()) 
-    #print("Datatset Max = ", max(data_object.input_lens)) 
-    #print("Datatset Min = ", min(data_object.input_lens)) 
 
     if NUM_REPLICAS <= 0:
         print("Error: Number of processes (--num_replicas) must be at least 1.")
@@ -511,18 +515,18 @@ if __name__ == "__main__":
     if NUM_SAMPLES <= 0:
         print("Error: Number of samples (--num_samples) must be at least 1.")
         exit(1)
-    if NUM_SAMPLES > len(text_prompts):
-        print(f"Warning: --num_samples ({NUM_SAMPLES}) is greater than available predefined prompts ({len(text_prompts)}). "
-              "Adjusting num_samples to use all available prompts.")
-        NUM_SAMPLES = len(text_prompts)
+    #if NUM_SAMPLES > len(text_prompts):
+    #    print(f"Warning: --num_samples ({NUM_SAMPLES}) is greater than available predefined prompts ({len(text_prompts)}). "
+    #          "Adjusting num_samples to use all available prompts.")
+    #    NUM_SAMPLES = len(text_prompts)
 
     # Generate synthetic prompts for Loadgen
-    def get_prompt_data(num_samples: int) -> List[str]:
-        """Retrieves prompts from the global list based on num_samples."""
-        return [text_prompts[i] for i in range(num_samples)]
+    #def get_prompt_data(num_samples: int) -> List[str]:
+    #    """Retrieves prompts from the global list based on num_samples."""
+    #    return [text_prompts[i] for i in range(num_samples)]
 
-    example_prompt_data = get_prompt_data(NUM_SAMPLES)
-    print(f"Prepared {len(example_prompt_data)} samples for Loadgen.")
+    #example_prompt_data = get_prompt_data(NUM_SAMPLES)
+    #print(f"Prepared {len(example_prompt_data)} samples for Loadgen.")
     print("-" * 50)
 
     # --- Initialize SUT ---
@@ -532,9 +536,10 @@ if __name__ == "__main__":
             num_replicas=NUM_REPLICAS,
             num_gpus=NUM_GPUS,
             model_name=MODEL_NAME,
+            dataset_path=DATASET_PATH,
             scheduling_policy=SCHEDULING_POLICY,
             max_model_len=MAX_MODEL_LEN,
-            example_data=example_prompt_data # Pass the list of prompt strings
+            example_data=[] # Pass the list of prompt strings
         )
 
         # --- MLPerf Loadgen Setup ---
@@ -543,6 +548,7 @@ if __name__ == "__main__":
         settings.mode = lg.TestMode.PerformanceOnly
         settings.min_duration_ms = 1000
         settings.min_query_count = NUM_SAMPLES
+        print("This may take some time as vLLM models are loaded in each process.")
 
 
         # Construct QSL and SUT for Loadgen.
@@ -567,7 +573,6 @@ if __name__ == "__main__":
 
         print(f"MLPerf Loadgen: Starting test with {NUM_SAMPLES} samples in Offline mode...")
         print(f"Model: {MODEL_NAME}, Processes: {NUM_REPLICAS}, GPUs: {NUM_GPUS}, Policy: {SCHEDULING_POLICY}")
-        print("This may take some time as vLLM models are loaded in each process.")
 
         lg.StartTest(SUTToTest, qsl, settings)
 

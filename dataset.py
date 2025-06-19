@@ -66,18 +66,21 @@ class Dataset:
         processed_data = pd.read_pickle(self.dataset_path)
 
         input_tokens = processed_data["tok_input"]
+        print(input_tokens) 
 
         self.input_ids = []
         self.input_lens = []
         self.attention_masks = []
 
         for ids in input_tokens:
-            input_ids = torch.tensor(ids, dtype=torch.int32).view(
-                1, -1).to(self.device)
-            attn_mask = torch.ones_like(input_ids)
-            self.input_ids.append(input_ids)
-            self.attention_masks.append(attn_mask)
-            self.input_lens.append(input_ids.shape[-1])
+            #input_ids = torch.tensor(ids, dtype=torch.int32).view(
+            #    1, -1).to(self.device)
+            #attn_mask = torch.ones_like(input_ids)
+            #self.input_ids.append(input_ids.tolist())
+            #self.attention_masks.append(attn_mask)
+            #self.input_lens.append(input_ids.shape[-1])
+            self.input_ids.append(ids)
+            self.input_lens.append(len(ids))
         print("Finished loading dataset.")
 
     def postProcess(
