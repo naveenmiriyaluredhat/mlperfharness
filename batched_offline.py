@@ -239,6 +239,8 @@ class VLLMSchedulingSUT:
         self.last_assigned_idx = -1 # For Round Robin scheduling
         self.query_id_to_prompt = {} # To store original prompts by query_id for debugging/tracking
         self.data_object = Dataset(self.model_name,dataset_path=self.dataset_path,total_sample_count=24576,device="cpu")
+
+        #Make this a function to print any dataset related information 
         logging.info("Datatset = %d", len(self.data_object.input_ids) )
         logging.info("Datatset Max = %d", max(self.data_object.input_lens)) 
         logging.info("Datatset Min = %d", min(self.data_object.input_lens)) 

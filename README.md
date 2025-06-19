@@ -37,6 +37,9 @@ LoadGen harness for MLperf inference
  21. Handle no power of two samples
  22. Allow engine configurations to be specified as part of harness
  23. Allow for API servers instead of offline inference
+ 24. Take care of proper partioning
+ 25. Even though vllm has dynamic batching . For offline scenario would it not be best to have statis batching ?
+
 
 
 #COMPLETED
