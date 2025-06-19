@@ -33,6 +33,10 @@ LoadGen harness for MLperf inference
  17. How does nvidia return the response ptr for QuerySampleResponse
  18. Single nsight profile of vllm with a batch of data
  19. Nvidia's harness for 5.1 and compare data
+ 20. Add vllm stats to be reported
+ 21. Handle no power of two samples
+ 22. Allow engine configurations to be specified as part of harness
+ 23. Allow for API servers instead of offline inference
 
 
 #COMPLETED
