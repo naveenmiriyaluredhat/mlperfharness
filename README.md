@@ -33,12 +33,12 @@ LoadGen harness for MLperf inference
  17. How does nvidia return the response ptr for QuerySampleResponse
  18. Single nsight profile of vllm with a batch of data
  19. Nvidia's harness for 5.1 and compare data
- 20. Add vllm stats to be reported
  21. Handle no power of two samples
  22. Allow engine configurations to be specified as part of harness
  23. Allow for API servers instead of offline inference
  24. Take care of proper partioning
- 25. Even though vllm has dynamic batching . For offline scenario would it not be best to have statis batching ?
+ 25. Even though vllm has dynamic batching . For offline scenario would it not be best to have static batching ?
+ 
 
 
 
@@ -47,6 +47,7 @@ LoadGen harness for MLperf inference
  1. Should ensure we pass the response data back to loadgen -Done
  2. Generate batched prompts for offline scenario
  3. Current harness allows one GPU to be specified per process. Allow for flexible mapping
+ 4. Add vllm stats to be reported -vLLM does not report stats with offline serving 
 
 #LoadGen 
 1. Loadgen is a load generator and provides an interface to be implemented by the SUT(System Under Test)

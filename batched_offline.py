@@ -94,6 +94,24 @@ def unload_samples_from_ram(query_samples):
     del query_samples
     return
 
+#Does not help printing the vllm metrics . Its kind of disabled with offline serving
+#https://github.com/vllm-project/vllm/issues/15775
+def print_vllm_output_metrics(outputs):
+    print(outputs)
+    #for output in outputs:
+        #metrics = output.metrics
+        #print(metrics)
+        #print(f"Request ID: {output.request_id}")
+        #print(f"Prompt: {output.prompt}")
+        #print(f"Generated Text: {output.outputs[0].text}")
+        #print(f"Time to First Token (TTFT): {metrics.time_to_first_token:.4f} seconds")
+        #print(f"Time per Output Token (TPOT): {metrics.time_per_output_token:.4f} seconds/token")
+        #print(f"End-to-End Latency: {metrics.e2e_latency:.4f} seconds")
+        #print(f"Prefill Time: {metrics.prefill_time:.4f} seconds")
+        #print(f"Decode Time: {metrics.decode_time:.4f} seconds")
+        #print(f"Total Prompt Tokens: {metrics.num_prompt_tokens}")
+        #print(f"Total Generated Tokens: {metrics.num_generation_tokens}")
+        #print(f"Finish Reason: {output.outputs[0].finish_reason}")
 
 # --- Worker Process Function ---
 def vllm_worker_process(
@@ -115,6 +133,7 @@ def vllm_worker_process(
     # --- IMPORTANT: Set CUDA_VISIBLE_DEVICES for THIS process ---
     os.environ['CUDA_VISIBLE_DEVICES'] = ",".join(map(str, cuda_device_ids))
     os.environ['VLLM_CONFIGURE_LOGGING'] = "0"
+    #os.environ['VLLM_LOGGING_LEVEL'] = "DEBUG"
     logging.info(f"Process {process_id}: Configured to use CUDA device: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
     logging.info(f"Process {process_id}: Starting to load model '{model_name}'...")
@@ -532,6 +551,9 @@ if __name__ == "__main__":
     if NUM_SAMPLES <= 0:
         logging.error("Error: Number of samples (--num_samples) must be at least 1.")
         exit(1)
+
+
+
     #if NUM_SAMPLES > len(text_prompts):
     #    print(f"Warning: --num_samples ({NUM_SAMPLES}) is greater than available predefined prompts ({len(text_prompts)}). "
     #          "Adjusting num_samples to use all available prompts.")
