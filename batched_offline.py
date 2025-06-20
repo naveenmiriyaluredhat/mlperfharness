@@ -360,7 +360,7 @@ class VLLMSchedulingSUT:
                             continue # Skip reporting this specific item as a Loadgen completion
 
                         # Create a Loadgen QuerySampleResponse for each item in the batch
-                        response = lg.QuerySampleResponse(query_id, 0, token_count) # data=0 for performance
+                        response = lg.QuerySampleResponse(query_id, 0,0, token_count) # data=0 for performance
                         responses_to_loadgen.append(response)
 
                         if result_data.get("status") == "error":
@@ -587,6 +587,7 @@ if __name__ == "__main__":
         settings.mode = lg.TestMode.PerformanceOnly
         settings.min_duration_ms = 1000
         settings.min_query_count = NUM_SAMPLES
+        settings.use_token_latencies = True
         logging.info("This may take some time as vLLM models are loaded in each process.")
 
 

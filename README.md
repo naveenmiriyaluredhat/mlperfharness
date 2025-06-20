@@ -14,29 +14,27 @@ LoadGen harness for MLperf inference
 
 #TODO
  1. Nvidia's harness uses tokenization
- 2. Convert to tokens and receive input tokens to be sent to LoadGen 
  4. For the same SUT have a interface for API serve as well
  5. In the MLperf branch named small_llm_inference there is a reference implementation for VLLM
 
     a. The vllm expects an API server
     
     b. Pull in the dataset class to process the json
- 8. There is no need for the worker thread collecting results. Loadgen should handle these scenarios well
+
  9. Add engine configs to be passed to the vllm engine
  10. Add nvtx annotation for nvprofile
  11. Add timers to get latency breakup within the harness
- 12. Load model and then start the load generator
  13. Process the dataset . Figure a way out for different models and their dataset processing requirements
  14. LLM_WORKER_MULTIPROC_METHOD=spawn Observed in nvidia's container for Llama3.1 8b check-in
  15. Understand why multiprocess spawn does not work clearly with multiple vllm processes Is it tied to the above one ?
  16. Nvidia uses npy files after preprocessing . Looks like they are loading as np.arrays which should be faster indexing 
+ 	Investigation reveals they make sequencesof equal length to enahnce computational advantage with GPUs
  17. How does nvidia return the response ptr for QuerySampleResponse
  18. Single nsight profile of vllm with a batch of data
  19. Nvidia's harness for 5.1 and compare data
- 21. Handle no power of two samples
  22. Allow engine configurations to be specified as part of harness
  23. Allow for API servers instead of offline inference
- 24. Take care of proper partioning
+ 24. Take care to partition correctly 
  25. Even though vllm has dynamic batching . For offline scenario would it not be best to have static batching ?
  
 
@@ -48,6 +46,10 @@ LoadGen harness for MLperf inference
  2. Generate batched prompts for offline scenario
  3. Current harness allows one GPU to be specified per process. Allow for flexible mapping
  4. Add vllm stats to be reported -vLLM does not report stats with offline serving 
+ 5. Load model and then start the load generator
+ 6. Convert to tokens and receive input tokens to be sent to LoadGen 
+ 7. There is no need for a separate worker thread collecting results. Loadgen should handle scenarios receiving from multiple threads
+ 	a. We are spawning multiple processes and that would create their own laodgen state
 
 #LoadGen 
 1. Loadgen is a load generator and provides an interface to be implemented by the SUT(System Under Test)
