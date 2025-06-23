@@ -21,7 +21,7 @@ LoadGen harness for MLperf inference
     
     b. Pull in the dataset class to process the json
 
- 9. Add engine configs to be passed to the vllm engine
+ 9.  Add engine configs to be passed to the vllm engine
  10. Add nvtx annotation for nvprofile
  11. Add timers to get latency breakup within the harness
  13. Process the dataset . Figure a way out for different models and their dataset processing requirements
@@ -50,6 +50,19 @@ LoadGen harness for MLperf inference
  6. Convert to tokens and receive input tokens to be sent to LoadGen 
  7. There is no need for a separate worker thread collecting results. Loadgen should handle scenarios receiving from multiple threads
  	a. We are spawning multiple processes and that would create their own laodgen state
+
+WIP:
+ 8. Complete the full sample 
+ 9. Provide batching of data samples
+ 10. Handling early stopping ? 
+ 11. Summarize on the preprocessing dataset done by Nvidia
+ 12. Does Nvidia pin data to GPU ? 
+ 13. Provide API server list to attach instead 
+ 14. Calculation of tokens in LoadGen . How does it happen ? 
+ 14. Create docker file 
+   i. COPY  the dataset
+   ii. Create the environment through dockerfile . Either conda or uv . Ensure PATH is set appropriately 
+ 15. Run on H100 openshift cluster 
 
 #LoadGen 
 1. Loadgen is a load generator and provides an interface to be implemented by the SUT(System Under Test)
