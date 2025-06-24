@@ -28,56 +28,6 @@ except ImportError:
     print("Example: pip install -e inference/loadgen")
     exit(1)
 
-text_prompts = [
-    "Tell me a short, funny joke about a robot.",
-    "Summarize the main points of the 'Software as a Service' (SaaS) model.",
-    "Write a short, encouraging poem about learning Python.",
-    "What is the capital of Australia?",
-    "Explain the concept of quantum entanglement in simple terms.",
-    "Hello, my name is",
-    "The capital of France is",
-    "What is the square root of 64?",
-    "Describe the basic principles of photosynthesis.",
-    "Write a short story about a detective who solves a case using only scent.",
-    "What are the main causes of climate change?",
-    "Compose a haiku about a rainy day.",
-    "Explain how a combustion engine works.",
-    "If you could have any superpower, what would it be and why?",
-    "Summarize the plot of 'Romeo and Juliet'.",
-    "Write a simple Python function to calculate the factorial of a number.",
-    "What is the largest ocean on Earth?",
-    "Describe the typical process of brewing coffee.",
-    "Write a short, encouraging message for someone starting a new job.",
-    "What is the currency of Japan?",
-    "Explain the concept of a black hole in astrophysics.",
-    "Tell me a short, intriguing riddle.",
-    "List three benefits of regular exercise.",
-    "What is the purpose of a compiler in programming?",
-    "Describe a futuristic car that runs on unusual fuel.",
-    "What is the highest mountain in Africa?",
-    "Write a dialogue between a human and an AI discussing art.",
-    "Summarize the history of the internet in two paragraphs.",
-    "What is the scientific name for humans?",
-    "Explain the difference between a planet and a star.",
-    "Write a short thank-you note to a volunteer.",
-    "What are the primary colors of light?",
-    "Describe the life cycle of a butterfly.",
-    "Invent a new type of sport and describe its rules.",
-    "What is the capital of Canada?",
-    "Explain what makes a good cup of tea.",
-    "Write a short, uplifting quote about perseverance.",
-    "What is the chemical symbol for water?",
-    "Describe the process of making bread from scratch.",
-    "What are the main functions of the human brain?",
-    "Write a short, imaginative description of a cloud.",
-    "Summarize the concept of 'machine learning' for a layperson.",
-    "What is the speed of light in a vacuum?",
-    "Describe a typical day in the life of an astronaut on the ISS.",
-    "What is the smallest country in the world?",
-    "Write a short, funny poem about a cat.",
-    "Explain why the sky is blue.",
-    "What are the major components of a computer?"
-]
 
 def load_samples_to_ram(query_samples):
     """
@@ -393,10 +343,12 @@ class VLLMSchedulingSUT:
         We divide them into batches and distribute to workers according to the scheduling policy.
         """
         total_samples = len(query_samples)
+
         if self.num_replicas == 0:
             logging.error("Error: num_replicas is 0, cannot distribute samples.")
             lg.QuerySamplesComplete([lg.QuerySampleResponse(qs.id, 0, 0) for qs in query_samples])
             return
+
         batch_size = BATCH_SIZE
         num_batches = (total_samples + batch_size - 1) // batch_size
         logging.info(f"\nSUT issue_query: Received {len(query_samples)} queries from Loadgen. Batch size: {batch_size}. Number of batches: {num_batches}.")
@@ -503,7 +455,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=len(text_prompts), # Default to use all pre-defined prompts
+        default=24576, # Default to use all pre-defined prompts
         help="Number of samples (prompts) Loadgen will issue for the offline test."
     )
     parser.add_argument(
@@ -548,6 +500,26 @@ if __name__ == "__main__":
         default=None,
         help="Comma-separated list of API server URLs (future use)."
     )
+
+    parser.add_argument(
+        "--user-conf",
+        type=str,
+        default="user.conf",
+        help="user config for user LoadGen settings such as target QPS",
+    )
+
+    parser.add_argument(
+        "--lg_model_name",
+        type=str,
+        default="llama2-70b",
+        choices=["llama2-70b", "llama2-70b-interactive"],
+        help="Model name(specified in llm server)",
+    )
+
+    parser.add_argument(
+        "--output-log-dir", type=str, default="output-logs", help="Where logs are saved"
+    )
+
     args = parser.parse_args()
 
     # --- Logging Configuration ---
@@ -603,10 +575,15 @@ if __name__ == "__main__":
         settings = lg.TestSettings()
         settings.scenario = lg.TestScenario.Offline
         settings.mode = lg.TestMode.PerformanceOnly
-        settings.min_duration_ms = 1000
-        settings.min_query_count = NUM_SAMPLES
         settings.use_token_latencies = True
         logging.info("This may take some time as vLLM models are loaded in each process.")
+        settings.FromConfig(args.user_conf,args.lg_model_name,"Offline")
+        log_output_settings = lg.LogOutputSettings()
+        log_output_settings.outdir = args.output_log_dir
+        log_output_settings.copy_summary_to_stdout = True
+        log_settings = lg.LogSettings()
+        log_settings.log_output = log_output_settings
+        log_settings.enable_trace = False
 
 
         # Construct QSL and SUT for Loadgen.
@@ -617,7 +594,7 @@ if __name__ == "__main__":
         # when we manage it via `GetQSLSample(index)` and `issue_query` uses the index.
         # We pass `NUM_SAMPLES` as the total number of items and performance sample count.
         qsl = lg.ConstructQSL(
-            NUM_SAMPLES, # Total samples
+            24576, # Total samples
             NUM_SAMPLES, # Performance samples
             load_samples_to_ram, # Callback to load data
             unload_samples_from_ram # Callback to unload data
@@ -632,9 +609,15 @@ if __name__ == "__main__":
         logging.info(f"MLPerf Loadgen: Starting test with {NUM_SAMPLES} samples in Offline mode...")
         logging.info(f"Model: {MODEL_NAME}, Processes: {NUM_REPLICAS}, GPUs: {NUM_GPUS}, Policy: {SCHEDULING_POLICY}")
 
-        lg.StartTest(SUTToTest, qsl, settings)
+        lg.StartTestWithLogSettings(SUTToTest, qsl, settings,log_settings)
 
         logging.info("\nMLPerf Loadgen test finished.")
+        logging.info("Main: Program finished.")
+        logging.info("Run Completed!")
+        #logging.info("Destroying SUT...")
+        #lg.DestroySUT(SUTToTest)
+        #logging.info("Destroying QSL...")
+        #lg.DestroyQSL(qsl)
 
     except Exception as e:
         logging.critical(f"\nMain program encountered an error: {e}")

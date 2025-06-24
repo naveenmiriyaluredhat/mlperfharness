@@ -37,7 +37,9 @@ LoadGen harness for MLperf inference
  24. Take care to partition correctly 
  25. Even though vllm has dynamic batching . For offline scenario would it not be best to have static batching ?
  
+python3 batched_offline.py --num_replicas 2 --num_gpus 4 --model_name <model_path>  --scheduling round_robin --dataset_path <dataset_path>  --log_level INFO --user-conf user.conf --num_samples 2000 --output-log-dir <outputdir>
 
+python3 batched_offline_batching.py --num_replicas 2 --num_gpus 4 --model_name <model_path>  --scheduling round_robin --dataset_path <dataset_path> --log_level INFO --user-conf user.conf --num_samples 2000 --output-log-dir ./TEST/ --batch_size 2048
 
 
 #COMPLETED

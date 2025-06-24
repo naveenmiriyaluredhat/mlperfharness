@@ -478,6 +478,9 @@ if __name__ == "__main__":
         default="user.conf",
         help="user config for user LoadGen settings such as target QPS",
     )
+    parser.add_argument(
+        "--output-log-dir", type=str, default="output-logs", help="Where logs are saved"
+    )
 
     parser.add_argument(
         "--lg_model_name",
@@ -541,6 +544,12 @@ if __name__ == "__main__":
         settings.use_token_latencies = True
         logging.info("This may take some time as vLLM models are loaded in each process.")
         settings.FromConfig(args.user_conf,args.lg_model_name,"Offline")
+        log_output_settings = lg.LogOutputSettings()
+        log_output_settings.outdir = args.output_log_dir
+        log_output_settings.copy_summary_to_stdout = True
+        log_settings = lg.LogSettings()
+        log_settings.log_output = log_output_settings
+        log_settings.enable_trace = False
 
 
         # Construct QSL and SUT for Loadgen.
@@ -566,7 +575,7 @@ if __name__ == "__main__":
         logging.info(f"MLPerf Loadgen: Starting test with {NUM_SAMPLES} samples in Offline mode...")
         logging.info(f"Model: {MODEL_NAME}, Processes: {NUM_REPLICAS}, GPUs: {NUM_GPUS}, Policy: {SCHEDULING_POLICY}")
 
-        lg.StartTest(SUTToTest, qsl, settings)
+        lg.StartTestWithLogSettings(SUTToTest, qsl, settings,log_settings)
 
         logging.info("\nMLPerf Loadgen test finished.")
         logging.info("Main: Program finished.")
